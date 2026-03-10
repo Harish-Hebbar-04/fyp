@@ -1,0 +1,26 @@
+# Dataset
+data/raw/
+data/processed/
+
+# Model checkpoints
+models/saved/
+
+# Virtual environment
+.venv/
+
+# Temp files
+*.tmp
+*.log
+temp_uploads/
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+.env
+*.pt
+*.pth
+*.ckpt
+archive.zip
+*.zip
