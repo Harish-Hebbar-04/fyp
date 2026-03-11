@@ -72,13 +72,20 @@ def get_device() -> torch.device:
 
 def compute_class_weights(train_loader: DataLoader,
                            num_classes: int = NUM_CLASSES) -> torch.Tensor:
-    """Squared-inverse-frequency weights – much stronger minority-class focus."""
+    """Compute class weights from frequency in training set.
+
+    We use the same exponent as the sampler so that loss weighting and
+    sampling behaviour are consistent.  Set :data:`config.CLASS_WEIGHT_EXP`
+    to 1.0 for simple inverse‑frequency, or higher for stronger minority
+    emphasis.
+    """
+    from config import CLASS_WEIGHT_EXP
     counts = torch.zeros(num_classes)
     for batch in train_loader:
         labels = batch["label"]
         for c in range(num_classes):
             counts[c] += (labels == c).sum()
-    weights = (1.0 / (counts + 1e-6)) ** 1.5
+    weights = (1.0 / (counts + 1e-6)) ** CLASS_WEIGHT_EXP
     return weights / weights.sum() * num_classes   # normalised
 
 
@@ -145,9 +152,10 @@ class Trainer:
         checkpoint_name: str     = "stutter_model",
         lr: float                = LEARNING_RATE,
         num_epochs: int          = NUM_EPOCHS,
-        patience: int            = PATIENCE,
+        patience: int | None     = None,            # allow CLI override
         warmup_epochs: int       = 5,
         mixup_alpha: float       = 0.4,
+        early_stop: bool         = True,            # optionally disable
     ):
         self.device        = get_device()
         self.model         = model.to(self.device)
@@ -155,7 +163,9 @@ class Trainer:
         self.val_dl        = val_loader
         self.mode          = mode
         self.num_epochs    = num_epochs
-        self.patience      = patience
+        # if caller passes None, fall back to config.PATIENCE
+        self.patience      = patience if patience is not None else PATIENCE
+        self.early_stop    = early_stop
         self.warmup_epochs = warmup_epochs
         self.mixup_alpha   = mixup_alpha
         self.save_path     = MODELS_DIR / f"{checkpoint_name}.pt"
@@ -303,7 +313,7 @@ class Trainer:
                       f" → {self.save_path}")
             else:
                 no_improve += 1
-                if no_improve >= self.patience:
+                if self.early_stop and no_improve >= self.patience:
                     print(f"\n  Early stopping at epoch {epoch} "
                           f"(no F1 improvement for {self.patience} epochs).")
                     break

@@ -72,6 +72,9 @@ def get_pipeline() -> StutterInferencePipeline:
             checkpoint_path=checkpoint,
             audio_only=True,
             use_cnn=True,        # Use SpectrogramCNN – matches the trained checkpoint
+            # post‑processing thresholds that help avoid false positives
+            min_confidence=0.5,
+            min_stutter_pct=10.0,
         )
     return _pipeline
 

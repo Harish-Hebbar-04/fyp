@@ -156,8 +156,15 @@ def verify(df: pd.DataFrame):
 # ─────────────────────────────────────────────────────────────────────────
 
 def main():
-    download_dataset()
-    csv_path = locate_csv()
+    # Check if dataset is already present
+    try:
+        csv_path = locate_csv()
+        print("Dataset CSV already found, skipping download.")
+    except SystemExit:
+        # CSV not found, download
+        download_dataset()
+        csv_path = locate_csv()
+    
     df       = build_label_csv(csv_path)
     save_processed(df)
     verify(df)

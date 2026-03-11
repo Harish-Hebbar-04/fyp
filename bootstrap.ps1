@@ -14,29 +14,50 @@ param(
 
 $ErrorActionPreference = "Stop"
 $ROOT = Split-Path -Parent $MyInvocation.MyCommand.Path
+$PYTHON = "C:\Users\uanup\AppData\Local\Microsoft\WindowsApps\python.exe"
 Set-Location $ROOT
 
 function Step($msg) {
     Write-Host ""
-    Write-Host ("─" * 60) -ForegroundColor Cyan
+    Write-Host ("-" * 60) -ForegroundColor Cyan
     Write-Host "  $msg" -ForegroundColor Cyan
-    Write-Host ("─" * 60) -ForegroundColor Cyan
+    Write-Host ("-" * 60) -ForegroundColor Cyan
 }
 
-# ── 1. Check Python ─────────────────────────────────────────
+# -- 1. Check Python -------------------------------------
 Step "1/5  Checking Python installation"
+# first try the explicit path configured above, then fall back to whatever is on PATH
+$pythonCmd = $PYTHON
+$pyver = $null
 try {
-    $pyver = python --version 2>&1
-    Write-Host "  Found: $pyver" -ForegroundColor Green
+    $pyver = & $pythonCmd --version 2>&1
 } catch {
+    # explicit path failed, try to find any python on PATH
+    Write-Host "  Could not invoke $pythonCmd. Searching PATH for python..." -ForegroundColor Yellow
+    $found = Get-Command python -ErrorAction SilentlyContinue
+    if ($found) {
+        $pythonCmd = $found.Path
+        try {
+            $pyver = & $pythonCmd --version 2>&1
+        } catch {
+            $pyver = $null
+        }
+    }
+}
+
+if ($pyver) {
+    Write-Host "  Found: $pyver (using $pythonCmd)" -ForegroundColor Green
+    # override PYTHON variable with the working command for later steps
+    $PYTHON = $pythonCmd
+} else {
     Write-Host "  ERROR: Python not found. Install from https://python.org (3.10+)" -ForegroundColor Red
     exit 1
 }
 
-# ── 2. Create virtual environment ───────────────────────────
+# -- 2. Create virtual environment -----------------------
 Step "2/5  Creating virtual environment (.venv)"
 if (-Not (Test-Path ".venv")) {
-    python -m venv .venv
+    & $PYTHON -m venv .venv
     Write-Host "  Virtual environment created." -ForegroundColor Green
 } else {
     Write-Host "  .venv already exists, skipping." -ForegroundColor Yellow
@@ -45,13 +66,13 @@ if (-Not (Test-Path ".venv")) {
 $PY  = ".\\.venv\\Scripts\\python.exe"
 $PIP = ".\\.venv\\Scripts\\pip.exe"
 
-# ── 3. Install dependencies ──────────────────────────────────
+# -- 3. Install dependencies ----------------------------
 Step "3/5  Installing dependencies from requirements.txt"
 & $PIP install --upgrade pip --quiet
 & $PIP install -r requirements.txt
 Write-Host "  Dependencies installed." -ForegroundColor Green
 
-# ── 4. Prepare dataset ───────────────────────────────────────
+# -- 4. Prepare dataset --------------------------------
 Step "4/5  Preparing SEP-28k dataset"
 
 $archiveZip  = "$ROOT\data\raw\archive.zip"
@@ -76,7 +97,7 @@ if (Test-Path $processedCsv) {
     Write-Host "  Then re-run: .\bootstrap.ps1 -Train" -ForegroundColor Yellow
 }
 
-# ── 5. Copy trained model if present ─────────────────────────
+# -- 5. Copy trained model if present -------------------
 Step "5/5  Checking for pre-trained model"
 
 $modelSrc = "$ROOT\models\saved\stutter_model.pt"
@@ -88,13 +109,13 @@ if (Test-Path $modelSrc) {
     Write-Host "    .\.venv\Scripts\python.exe training\train.py --model cnn --mode audio_only --epochs 50 --batch 32"
 }
 
-# ── Optional training ─────────────────────────────────────────
+# -- Optional training ---------------------------------
 if ($Train) {
     Step "BONUS  Training model (--model cnn, 50 epochs)"
     & $PY training\train.py --model cnn --mode audio_only --epochs 50 --batch 16 --workers 0 --csv data\processed\sep28k_labels.csv --checkpoint stutter_model
 }
 
-# ── Done ─────────────────────────────────────────────────────
+# -- Done -------------------------------------------
 Write-Host ""
 Write-Host ("=" * 60) -ForegroundColor Green
 Write-Host "  Setup complete!" -ForegroundColor Green

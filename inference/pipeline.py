@@ -105,6 +105,10 @@ class StutterInferencePipeline:
         stride_sec:      float = 2.5,
         audio_only:      bool  = True,
         use_cnn:         bool  = False,
+        *,
+        # post‑processing thresholds (see run() comments)
+        min_confidence:   float = 0.5,
+        min_stutter_pct:  float = 10.0,
     ):
         # ── Device ───────────────────────────────────────────────────────
         if device is None:
@@ -140,6 +144,10 @@ class StutterInferencePipeline:
         self.audio_only = audio_only
         if not audio_only:
             self.face_extractor = FacialLandmarkExtractor()
+
+        # thresholds for post‑processing (set by constructor args)
+        self.min_confidence  = min_confidence
+        self.min_stutter_pct = min_stutter_pct
 
         self.window_samples = int(window_sec * SAMPLE_RATE)
         self.stride_samples = int(stride_sec * SAMPLE_RATE)
@@ -262,6 +270,21 @@ class StutterInferencePipeline:
             / max(len(timeline), 1)
             * 100
         )
+
+        # ── Post-processing to reduce false positives ────────────────────
+        # If the model votes for a stutter class but the confidence is low
+        # and only a small portion of windows are non‑fluent, override to
+        # fluent.  Thresholds are configurable via attributes set in
+        # __init__ (defaults chosen heuristically).
+        if pred_id != fluent_id:
+            if confidence < self.min_confidence:
+                pred_id = fluent_id
+                pred_label = "Fluent"
+                confidence = float(mean_probs[fluent_id])
+            elif stutter_pct < self.min_stutter_pct:
+                pred_id = fluent_id
+                pred_label = "Fluent"
+                confidence = float(mean_probs[fluent_id])
 
         return InferenceResult(
             predicted_label = pred_label,
