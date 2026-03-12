@@ -77,13 +77,6 @@ python training/train.py --mode full --epochs 20
 python training/train.py --model cnn --mode audio_only
 ```
 
-> **Tip:** if the trained model is overly eager to label fluent clips as
-> stutter, reduce the class‑weight exponent in `config.py`
-> (`CLASS_WEIGHT_EXP=1.0` is inverse‑frequency; higher values emphasise
-> minorities more strongly).  You can also adjust the inference thresholds
-> (`min_confidence`, `min_stutter_pct`) when constructing
-> :class:`StutterInferencePipeline` (defaults already applied in the API/UI).
-
 ### 4. Run the API
 
 ```bash
