@@ -265,11 +265,9 @@ class StutterInferencePipeline:
         confidence  = float(mean_probs[pred_id])
 
         fluent_id   = LABEL2ID["Fluent"]
-        stutter_pct = float(
-            sum(1 for e in timeline if e["label"] != "Fluent")
-            / max(len(timeline), 1)
-            * 100
-        )
+        # Calculate stutter_pct as 100 - (mean probability of Fluent class)
+        # This is more robust than counting hard predictions
+        stutter_pct = float((1.0 - mean_probs[fluent_id]) * 100)
 
         # ── Post-processing to reduce false positives ────────────────────
         # If the model votes for a stutter class but the confidence is low
@@ -281,10 +279,20 @@ class StutterInferencePipeline:
                 pred_id = fluent_id
                 pred_label = "Fluent"
                 confidence = float(mean_probs[fluent_id])
+                stutter_pct = 0.0  # Reset stutter_pct when overriding to Fluent
             elif stutter_pct < self.min_stutter_pct:
                 pred_id = fluent_id
                 pred_label = "Fluent"
                 confidence = float(mean_probs[fluent_id])
+                stutter_pct = 0.0  # Reset stutter_pct when overriding to Fluent
+        
+        # Additional safeguard: if Fluent probability is high, always prefer Fluent
+        # even if a stutter class has slightly higher probability
+        if mean_probs[fluent_id] > 0.45 and pred_id != fluent_id:
+            pred_id = fluent_id
+            pred_label = "Fluent"
+            confidence = float(mean_probs[fluent_id])
+            stutter_pct = float((1.0 - mean_probs[fluent_id]) * 100)
 
         return InferenceResult(
             predicted_label = pred_label,
