@@ -54,12 +54,6 @@ def parse_args():
                         default=(0 if os.name == "nt" else 2))
     parser.add_argument("--csv",        type=str,   default=None)
     parser.add_argument("--checkpoint", type=str,   default="stutter_model")
-    parser.add_argument("--patience",   type=int,   default=None,
-                        help="early-stopping patience (overrides config.PATIENCE)")
-    parser.add_argument("--no-early-stop", action="store_true",
-                        help="disable early stopping and always run all epochs")
-    parser.add_argument("--resume", action="store_true",
-                        help="load existing checkpoint before training")
     return parser.parse_args()
 
 
@@ -94,10 +88,6 @@ def main():
     print(f"Parameters → total: {total_params:,}   trainable: {trainable_params:,}\n")
 
     # ── Train ─────────────────────────────────────────────────────────────
-    # determine patience / early-stop behaviour
-    patience = args.patience if args.patience is not None else None
-    early_stop = not args.no_early_stop
-
     trainer = Trainer(
         model           = model,
         train_loader    = train_loader,
@@ -105,19 +95,7 @@ def main():
         mode            = args.mode,
         checkpoint_name = args.checkpoint,
         num_epochs      = args.epochs,
-        patience        = patience,
-        early_stop      = early_stop,
     )
-
-    # option to resume from existing checkpoint
-    if args.resume:
-        ckpt = MODELS_DIR / f"{args.checkpoint}.pt"
-        if ckpt.exists():
-            model.load_state_dict(torch.load(ckpt, map_location="cpu"))
-            print(f"Resuming training from checkpoint: {ckpt}")
-        else:
-            print(f"No checkpoint found at {ckpt}; starting from scratch")
-
     history = trainer.train()
 
     # ── Final test-set evaluation ─────────────────────────────────────────

@@ -79,15 +79,6 @@ PITCH_SHIFT_STEPS  = 3        # semitones
 TIME_STRETCH_RATE  = 0.85     # 0.85 – 1.15
 
 # ─────────────────────────────────────────────
-# Class weighting / sampling
-# ─────────────────────────────────────────────
-# Exponent applied to inverse-frequency when computing sample/class weights.
-# Values >1 aggressively emphasise minority classes; 1.0 is simple inverse-
-# frequency.  Reduce this number if the model is over-sensitive (i.e. labels
-# fluent clips as stutter).
-CLASS_WEIGHT_EXP   = 1.0
-
-# ─────────────────────────────────────────────
 # API
 # ─────────────────────────────────────────────
 API_HOST           = "0.0.0.0"
