@@ -154,11 +154,7 @@ def make_weighted_sampler(df: pd.DataFrame) -> WeightedRandomSampler:
     """
     class_counts  = df["label_id"].value_counts().sort_index().values
     # Squared inverse-frequency — much stronger emphasis on minority classes
-    # use exponent from config to control how strongly minority classes
-    # are oversampled; lower the value if the model is too prone to
-    # predicting stutter on fluent audio.
-    from config import CLASS_WEIGHT_EXP
-    class_weights = (1.0 / class_counts) ** CLASS_WEIGHT_EXP
+    class_weights = (1.0 / class_counts) ** 1.5
     class_weights /= class_weights.sum()                   # normalise
     sample_weights = class_weights[df["label_id"].values]
 
@@ -187,32 +183,9 @@ def build_dataloaders(
 
     Splits are stratified by label.
     Train loader uses WeightedRandomSampler for class balance.
-
-    If the processed CSV is missing, attempt to create it by invoking
-    :mod:`data.download_dataset`.  This mirrors what the bootstrap script does.
     """
     if csv_path is None:
         csv_path = PROCESSED_DIR / "sep28k_labels.csv"
-
-    # make sure the CSV actually exists; if not, try to generate it
-    if not Path(csv_path).exists():
-        print(f"Processed CSV not found at {csv_path}.")
-        print("  Attempting to build dataset automatically...")
-        try:
-            # import locally to avoid circular imports during unit tests
-            from data import download_dataset
-            download_dataset.main()
-        except Exception as exc:
-            raise FileNotFoundError(
-                f"Could not find or create dataset CSV ({csv_path}). "
-                "Please run `python data/download_dataset.py` manually "
-                "or populate data/processed/sep28k_labels.csv yourself. "
-                f"Original error: {exc}"
-            )
-        if not Path(csv_path).exists():
-            raise FileNotFoundError(
-                f"Failed to create {csv_path}. Ensure the dataset is available."
-            )
 
     df = pd.read_csv(csv_path)
     processor = Wav2Vec2Processor.from_pretrained(WAV2VEC2_MODEL)
