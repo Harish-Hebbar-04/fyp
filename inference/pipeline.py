@@ -105,6 +105,10 @@ class StutterInferencePipeline:
         stride_sec:      float = 2.5,
         audio_only:      bool  = True,
         use_cnn:         bool  = False,
+        *,
+        # post‑processing thresholds (see run() comments)
+        min_confidence:   float = 0.5,
+        min_stutter_pct:  float = 10.0,
     ):
         # ── Device ───────────────────────────────────────────────────────
         if device is None:
@@ -140,6 +144,10 @@ class StutterInferencePipeline:
         self.audio_only = audio_only
         if not audio_only:
             self.face_extractor = FacialLandmarkExtractor()
+
+        # thresholds for post‑processing (set by constructor args)
+        self.min_confidence  = min_confidence
+        self.min_stutter_pct = min_stutter_pct
 
         self.window_samples = int(window_sec * SAMPLE_RATE)
         self.stride_samples = int(stride_sec * SAMPLE_RATE)
@@ -257,11 +265,34 @@ class StutterInferencePipeline:
         confidence  = float(mean_probs[pred_id])
 
         fluent_id   = LABEL2ID["Fluent"]
-        stutter_pct = float(
-            sum(1 for e in timeline if e["label"] != "Fluent")
-            / max(len(timeline), 1)
-            * 100
-        )
+        # Calculate stutter_pct as 100 - (mean probability of Fluent class)
+        # This is more robust than counting hard predictions
+        stutter_pct = float((1.0 - mean_probs[fluent_id]) * 100)
+
+        # ── Post-processing to reduce false positives ────────────────────
+        # If the model votes for a stutter class but the confidence is low
+        # and only a small portion of windows are non‑fluent, override to
+        # fluent.  Thresholds are configurable via attributes set in
+        # __init__ (defaults chosen heuristically).
+        if pred_id != fluent_id:
+            if confidence < self.min_confidence:
+                pred_id = fluent_id
+                pred_label = "Fluent"
+                confidence = float(mean_probs[fluent_id])
+                stutter_pct = 0.0  # Reset stutter_pct when overriding to Fluent
+            elif stutter_pct < self.min_stutter_pct:
+                pred_id = fluent_id
+                pred_label = "Fluent"
+                confidence = float(mean_probs[fluent_id])
+                stutter_pct = 0.0  # Reset stutter_pct when overriding to Fluent
+        
+        # Additional safeguard: if Fluent probability is high, always prefer Fluent
+        # even if a stutter class has slightly higher probability
+        if mean_probs[fluent_id] > 0.45 and pred_id != fluent_id:
+            pred_id = fluent_id
+            pred_label = "Fluent"
+            confidence = float(mean_probs[fluent_id])
+            stutter_pct = float((1.0 - mean_probs[fluent_id]) * 100)
 
         return InferenceResult(
             predicted_label = pred_label,
